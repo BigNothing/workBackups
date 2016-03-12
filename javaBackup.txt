@@ -1,0 +1,390 @@
+import org.apache.cordova.CordovaWebView;
+import org.apache.cordova.CallbackContext;
+import org.apache.cordova.CordovaPlugin;
+import org.apache.cordova.CordovaInterface;
+import org.apache.cordova.PluginResult;
+
+import android.app.AlertDialog;
+import android.util.Base64;
+import android.util.Log;
+import android.provider.Settings;
+import android.widget.Toast;
+
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
+import java.io.UnsupportedEncodingException;
+import java.net.URL;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
+
+import java.lang.InterruptedException;
+
+import android.media.AudioManager;
+
+import com.sinch.android.rtc.ClientRegistration;
+import com.sinch.android.rtc.Sinch;
+import com.sinch.android.rtc.SinchClient;
+import com.sinch.android.rtc.SinchClientListener;
+import com.sinch.android.rtc.SinchError;
+import com.sinch.android.rtc.calling.Call;
+import com.sinch.android.rtc.calling.CallClient;
+import com.sinch.android.rtc.calling.CallClientListener;
+import com.sinch.android.rtc.calling.CallListener;
+import com.sinch.android.rtc.PushPair;
+
+import java.net.HttpURLConnection;
+
+import javax.net.ssl.HttpsURLConnection;
+
+
+public class CoolPlugin extends CordovaPlugin {
+
+    public static final String TAG = "VOIP PLUGIN";
+    private Call call = null;
+    private SinchClient sinchClient;
+    private int duration = Toast.LENGTH_SHORT;
+    private CallbackContext connectionCallbackContext;
+    private CallbackContext ringContext;
+    private CallbackContext confContext;
+    private Map<String,String> checkHeaders;
+
+
+    public CoolPlugin() {
+    }
+
+
+    public void initialize(CordovaInterface cordova, CordovaWebView webView) {
+        super.initialize(cordova, webView);
+        Log.v(TAG, "Init CoolPlugin");
+
+    }
+
+
+    public boolean execute(final String action, JSONArray args, final CallbackContext callbackContext) throws JSONException {
+
+        this.connectionCallbackContext = callbackContext;
+        Log.v(TAG, "CoolPlugin received:" + action);
+
+
+        if ("REGISTER".equals(action)) {
+
+            this.ringContext = callbackContext;
+
+            try {
+
+                sinchClient = Sinch.getSinchClientBuilder()
+                        .context(cordova.getActivity().getApplicationContext())
+                        .userId(args.getString(0))
+                        .applicationKey("2bd1c61e-b210-46db-86d7-b6441c84281b")
+                        .applicationSecret("UZzt3EnAgk2A8zlbTvDGfA==")
+                        .environmentHost("sandbox.sinch.com")
+                        .build();
+
+                sinchClient.setSupportCalling(true);
+                sinchClient.startListeningOnActiveConnection();     //waiting for calls
+                sinchClient.start();
+                sinchClient.getCallClient().addCallClientListener(new SinchCallClientListener());     //catch incoming calls
+
+            } catch (JSONException e) {
+                Log.v(TAG, "JSON FAILURE");
+            }
+
+            PluginResult pluginResult = new PluginResult(PluginResult.Status.OK);
+            pluginResult.setKeepCallback(true);
+            this.connectionCallbackContext.sendPluginResult(pluginResult);
+            return true;
+
+        } else if ("CALL".equals(action)) {
+
+            call = sinchClient.getCallClient().callUser(args.getString(0));
+            call.addCallListener(new SinchCallListener());
+
+
+            PluginResult pluginResult = new PluginResult(PluginResult.Status.OK);
+            pluginResult.setKeepCallback(true);
+            this.connectionCallbackContext.sendPluginResult(pluginResult);
+            return true;
+
+        } else if ("CONFCALL".equals(action)) {
+
+
+
+            Map<String,String> callHeader= new HashMap<String, String>();
+
+            callHeader.put(sinchClient.getLocalUserId(),sinchClient.toString());
+
+            call = sinchClient.getCallClient().callConference(args.getString(0),callHeader);
+            call.addCallListener(new SinchCallListener());
+
+            callbackContext.success();
+
+            return true;
+
+
+        } else if("SHOW_H".equals(action)){
+
+
+
+            AlertDialog.Builder builder = new AlertDialog.Builder(cordova.getActivity());
+            builder.setMessage(checkHeaders.toString())
+                    .setTitle("Headers");
+
+            AlertDialog dialog = builder.create();
+            dialog.show();
+
+
+
+            callbackContext.success();
+            return true;
+
+        } else if ("HANG".equals(action)) {
+
+            call.hangup();
+//            sinchClient.stopListeningOnActiveConnection();
+//            sinchClient.terminate();
+            PluginResult pluginResult = new PluginResult(PluginResult.Status.OK);
+            pluginResult.setKeepCallback(true);
+            this.connectionCallbackContext.sendPluginResult(pluginResult);
+            return true;
+
+        } else if ("PICKUP".equals(action)) {
+
+
+            call.answer();
+
+            PluginResult pluginResult = new PluginResult(PluginResult.Status.OK);
+            pluginResult.setKeepCallback(true);
+            this.connectionCallbackContext.sendPluginResult(pluginResult);
+
+            Toast toast = Toast.makeText(cordova.getActivity().getApplicationContext(), "TAAAALK", duration);
+            toast.show();
+            return true;
+
+        } else if ("CHECK".equals(action)) {
+
+
+            cordova.getThreadPool().execute(new Runnable() {
+                public void run() {
+
+                    String result;
+
+                    try {
+
+                        result = downloadUrl("https://callingapi.sinch.com/v1/conferences/id/blabla");
+                        PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, result);
+                        pluginResult.setKeepCallback(true);
+                        callbackContext.sendPluginResult(pluginResult);
+
+
+                    } catch (IOException e) {
+                        Log.e("PLUGIN GET", e.toString());
+                        PluginResult pluginResult = new PluginResult(PluginResult.Status.ERROR);
+                        callbackContext.sendPluginResult(pluginResult);
+
+                    } catch (JSONException e){
+
+                        Log.e("PLUGIN GET", e.toString());
+                        PluginResult pluginResult = new PluginResult(PluginResult.Status.ERROR);
+                        callbackContext.sendPluginResult(pluginResult);
+                    }
+                }
+            });
+
+
+            return true;
+
+        }
+
+
+        return false;  // Returning false results in a "MethodNotFound" error.
+
+    }
+
+    private String downloadUrl(String myurl) throws IOException,JSONException {
+
+        InputStream is = null;
+        HttpsURLConnection conn;
+        // Only display the first 500 characters of the retrieved
+        // web page content.
+        int len = 500;
+
+        try {
+
+
+            String key = "2bd1c61e-b210-46db-86d7-b6441c84281b";
+            String secret = "UZzt3EnAgk2A8zlbTvDGfA==";
+            String usernameAndPassword = "application\\" + key + ":" + secret;
+
+
+            URL url = new URL(myurl);
+            conn = (HttpsURLConnection) url.openConnection();
+
+            conn.setReadTimeout(10000);
+            conn.setConnectTimeout(15000);
+            conn.setRequestMethod("GET");
+            conn.setUseCaches(false);
+            conn.setAllowUserInteraction(false);
+
+            conn.setRequestProperty("Authorization", "basic " +
+                    Base64.encodeToString(usernameAndPassword.getBytes(), Base64.NO_WRAP));
+
+
+            //Authorization = "basic" + " " + Base64 ( usernameAndPassword )
+
+            conn.setDoInput(true);
+            // Starts the query
+
+            BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
+            StringBuilder sb = new StringBuilder();
+
+            conn.connect();
+            Log.e("PLUGIN POST", "connect success");
+            int response = conn.getResponseCode();
+            Log.e("PLUGIN POST", "response success");
+
+
+            //TODO
+
+            Log.e("PLUGIN GET", "input stream success");
+            // Convert the InputStream into a string
+            // String contentAsString = readIt(is, len);
+
+
+            String line;
+            while ((line = br.readLine()) != null) {
+                sb.append(line + "\n");
+            }
+            br.close();
+
+            Log.e("PLUGIN GET", "toString try");
+
+            conn.disconnect();
+            Log.e("PLUGIN GET", "DISSCONNECTED");
+
+
+
+            JSONObject jsonObj = new JSONObject(sb.toString());
+
+            return jsonObj.toString();
+            // return contentAsString;
+
+
+            // Makes sure that the InputStream is closed after the app is
+            // finished using it.
+
+
+        }  finally {
+            if (is != null) {
+                is.close();
+
+            }
+        }
+    }
+
+    // Reads an InputStream and converts it to a String.
+    public String readIt(InputStream stream, int len) throws IOException, UnsupportedEncodingException {
+        Reader reader = null;
+        reader = new InputStreamReader(stream, "UTF-8");
+        char[] buffer = new char[len];
+        reader.read(buffer);
+        return new String(buffer);
+    }
+
+    private class SinchCallListener implements CallListener {
+
+        @Override
+        public void onCallEstablished(Call establishedCall) {
+
+            //incoming call was picked up
+            Log.d(TAG, "Call established");
+            cordova.getActivity().setVolumeControlStream(AudioManager.STREAM_VOICE_CALL);
+            Log.d(TAG, "VOLUME CONTROL READY");
+
+            Toast toast = Toast.makeText(cordova.getActivity().getApplicationContext(), "connected", duration);
+            toast.show();
+
+            checkHeaders=establishedCall.getHeaders();
+
+        }
+
+        @Override
+        public void onCallProgressing(Call progressingCall) {
+
+            //onCallProgressing
+            Toast toast = Toast.makeText(cordova.getActivity().getApplicationContext(), "ringing", duration);
+            toast.show();
+
+        }
+
+        @Override
+        public void onCallEnded(Call endedCall) {
+            //call ended by either party
+
+            cordova.getActivity().setVolumeControlStream(AudioManager.USE_DEFAULT_STREAM_TYPE);
+            Log.d(TAG, "VOLUME OFF");
+            call = null;
+
+            //onCallEnded
+            Toast toast = Toast.makeText(cordova.getActivity().getApplicationContext(), "call ended", duration);
+            toast.show();
+
+        }
+
+
+        @Override
+        public void onShouldSendPushNotification(Call call, List<PushPair> pushPairs) {
+            //don't worry about this right now
+        }
+    }
+
+    //TODO
+    private class SinchCallClientListener implements CallClientListener {
+
+        @Override
+        public void onIncomingCall(CallClient callClient, Call incomingCall) {
+
+
+            //Pick up the call!
+            // Start playing ringing tone
+            call = incomingCall;
+            call.addCallListener(new SinchCallListener());
+
+
+
+            PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, "RING_RING");
+            pluginResult.setKeepCallback(true);
+            ringContext.sendPluginResult(pluginResult);
+
+        }
+    }
+
+
+}
+
+/*sinchClient.addSinchClientListener(new SinchClientListener() {
+                    public void onClientStarted(SinchClient client) {
+                    }
+
+                    public void onClientStopped(SinchClient client) {
+                    }
+
+                    public void onClientFailed(SinchClient client, SinchError error) {
+                    }
+
+                    public void onRegistrationCredentialsRequired(SinchClient client, ClientRegistration registrationCallback) {
+                    }
+
+                    public void onLogMessage(int level, String area, String message) {
+                    }
+                });*/

@@ -1,0 +1,104 @@
+var exec = require('cordova/exec');
+
+function CoolPlugin() { 
+ console.log("CoolPlugin.js: is created");
+}
+
+CoolPlugin.prototype.regUser = function(caller){
+
+ exec(function(result){
+
+
+     alert("Register successfull");
+
+     if(result == "RING_RING"){
+
+        alert("RINGING");
+
+     }
+
+   },
+  function(result){
+
+
+    alert("Error register");
+  },"CoolPlugin","REGISTER",[caller]);
+
+};
+
+CoolPlugin.prototype.callUser = function(callee){
+
+    exec(function(result){
+        alert("Call successfull");
+    },
+    function(result){
+        alert("Error call user");
+    },"CoolPlugin","CALL",[callee]);
+};
+
+CoolPlugin.prototype.hangCall = function(){
+
+    exec(function(result){
+            alert("Hang successfull");
+        },
+        function(result){
+            alert("Error hang ");
+        },"CoolPlugin","HANG",[]);
+};
+
+
+CoolPlugin.prototype.pickUpCall = function(){
+
+    exec(function(result){
+            alert("PickUpSuccess");
+
+
+        },
+        function(result){
+            alert("Error pick up ");
+        },"CoolPlugin","PICKUP",[]);
+
+};
+
+
+CoolPlugin.prototype.callUser = function(roomID){
+
+    exec(function(result){
+            alert("CONF CALL SUCCESS");
+
+
+        },
+        function(result){
+            alert("Error pick up ");
+        },"CoolPlugin","CONFCALL",[roomID]);
+
+};
+
+CoolPlugin.prototype.checkConf = function(){
+
+    exec(function(result){
+
+            alert(result);
+
+        },
+        function(result){
+            alert("Error pick up ");
+        },"CoolPlugin","CHECK",[]);
+
+};
+
+CoolPlugin.prototype.showHeaders = function(){
+
+    exec(function(result){
+
+            alert(result);
+
+        },
+        function(result){
+            alert("Error pick up ");
+        },"CoolPlugin","SHOW_H",[]);
+
+};
+
+ var coolPlugin = new CoolPlugin();
+ module.exports = coolPlugin;
