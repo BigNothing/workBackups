@@ -6,7 +6,7 @@ function CoolPlugin() {
 
 CoolPlugin.prototype.regUser = function(caller){
 
- exec(function(result){
+exec(function(result){
 
 
      alert("Register successfull");
