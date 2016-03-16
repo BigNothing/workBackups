@@ -8,41 +8,39 @@ CoolPlugin.prototype.regUser = function(caller){
 
 exec(function(result){
 
-
-     alert("Register successfull");
-
-     if(result == "RING_RING"){
-
-        alert("RINGING");
-
-     }
+     alert(result);
 
    },
   function(result){
 
+    alert(result);
 
-    alert("Error register");
   },"CoolPlugin","REGISTER",[caller]);
 
 };
 
-CoolPlugin.prototype.callUser = function(callee){
+CoolPlugin.prototype.callConf = function(roomID){
 
     exec(function(result){
-        alert("Call successfull");
-    },
-    function(result){
-        alert("Error call user");
-    },"CoolPlugin","CALL",[callee]);
+
+            alert(result);
+
+
+        },
+        function(result){
+            alert(result);
+        },"CoolPlugin","CALL",[roomID]);
+
 };
+
 
 CoolPlugin.prototype.hangCall = function(){
 
     exec(function(result){
-            alert("Hang successfull");
+            alert(result);
         },
         function(result){
-            alert("Error hang ");
+            alert(result);
         },"CoolPlugin","HANG",[]);
 };
 
@@ -50,29 +48,25 @@ CoolPlugin.prototype.hangCall = function(){
 CoolPlugin.prototype.pickUpCall = function(){
 
     exec(function(result){
-            alert("PickUpSuccess");
+
+            alert(result);
 
 
         },
         function(result){
-            alert("Error pick up ");
+
+            alert(result);
         },"CoolPlugin","PICKUP",[]);
 
 };
 
 
-CoolPlugin.prototype.callUser = function(roomID){
-
-    exec(function(result){
-            alert("CONF CALL SUCCESS");
 
 
-        },
-        function(result){
-            alert("Error pick up ");
-        },"CoolPlugin","CONFCALL",[roomID]);
 
-};
+
+
+
 
 CoolPlugin.prototype.checkConf = function(){
 
