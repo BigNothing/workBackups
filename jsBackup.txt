@@ -1,25 +1,103 @@
-var exec = require('cordova/exec');
+cordova.define("com.matd.coolplugin.CoolPlugin", function(require, exports, module) { var exec = require('cordova/exec');
+
+
+var conferenceID;
 
 function CoolPlugin() { 
  console.log("CoolPlugin.js: is created");
 }
 
-CoolPlugin.prototype.regUser = function(caller){
+
+
+    // baseCallbackContext
+CoolPlugin.prototype.regUser = function(){
 
 exec(function(result){
 
-     alert(result);
+    //if we recieve some conversation datа
+     if(isJsonString(result)){
+
+
+         var eventInfo = JSON.parse(result);
+
+
+         if(eventInfo.type == "invite"){
+
+             conferenceID = eventInfo.conferenceID;
+
+             if (confirm("User:" + eventInfo.initiator + "\n is inviting you") == true) {
+
+
+
+                 exec(function(result){
+
+                         alert(result);
+
+                     },
+                     function(result){
+                         alert(result);
+                     },"CoolPlugin","JOIN_ROOM",[conferenceID]);
+
+
+             } else {
+
+                 alert("You can always call back with join button");
+
+             }
+
+
+
+         }else if(eventInfo.type == "leave"){
+
+
+             alert(eventInfo.leaver + " left the conversation");
+
+
+         }
+
+
+
+     }else{
+
+
+         alert(result);
+
+     }
 
    },
   function(result){
 
     alert(result);
 
-  },"CoolPlugin","REGISTER",[caller]);
+  },"CoolPlugin","REGISTER",[]);
 
 };
 
-CoolPlugin.prototype.callConf = function(roomID){
+function isJsonString(str) {
+    try {
+        JSON.parse(str);
+    } catch (e) {
+        return false;
+    }
+    return true;
+}
+
+
+CoolPlugin.prototype.createRoom = function(){
+
+exec(function(result){
+
+        alert(result);
+
+
+    },
+    function(result){
+        alert(result);
+    },"CoolPlugin","CREATE_ROOM",[]);
+
+};
+
+CoolPlugin.prototype.joinRoom = function(){
 
     exec(function(result){
 
@@ -29,10 +107,12 @@ CoolPlugin.prototype.callConf = function(roomID){
         },
         function(result){
             alert(result);
-        },"CoolPlugin","CALL",[roomID]);
+        },"CoolPlugin","JOIN_ROOM",[conferenceID]);
 
 };
 
+
+    
 
 CoolPlugin.prototype.hangCall = function(){
 
@@ -43,32 +123,10 @@ CoolPlugin.prototype.hangCall = function(){
             alert(result);
         },"CoolPlugin","HANG",[]);
 };
+    
 
 
-CoolPlugin.prototype.pickUpCall = function(){
-
-    exec(function(result){
-
-            alert(result);
-
-
-        },
-        function(result){
-
-            alert(result);
-        },"CoolPlugin","PICKUP",[]);
-
-};
-
-
-
-
-
-
-
-
-
-CoolPlugin.prototype.checkConf = function(){
+CoolPlugin.prototype.destroyClient = function(){
 
     exec(function(result){
 
@@ -76,23 +134,15 @@ CoolPlugin.prototype.checkConf = function(){
 
         },
         function(result){
-            alert("Error pick up ");
-        },"CoolPlugin","CHECK",[]);
-
-};
-
-CoolPlugin.prototype.showHeaders = function(){
-
-    exec(function(result){
 
             alert(result);
-
-        },
-        function(result){
-            alert("Error pick up ");
-        },"CoolPlugin","SHOW_H",[]);
+        },"CoolPlugin","DESTROY",[]);
 
 };
+    
 
  var coolPlugin = new CoolPlugin();
  module.exports = coolPlugin;
+
+});
+
