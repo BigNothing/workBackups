@@ -1,69 +1,55 @@
+package com.sqilline.cordova.dicom;
+
 import org.apache.cordova.CordovaWebView;
 import org.apache.cordova.CallbackContext;
 import org.apache.cordova.CordovaPlugin;
 import org.apache.cordova.CordovaInterface;
 import org.apache.cordova.PluginResult;
 
-import android.app.AlertDialog;
-import android.util.Base64;
 import android.util.Log;
-import android.provider.Settings;
-import android.widget.Toast;
 
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
-import java.io.Reader;
-import java.io.UnsupportedEncodingException;
-import java.net.URL;
+import java.lang.Override;
+
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
-import java.util.Timer;
-import java.util.TimerTask;
-
-import java.lang.InterruptedException;
-
-import android.media.AudioManager;
+import java.util.UUID;
 
 import com.sinch.android.rtc.ClientRegistration;
 import com.sinch.android.rtc.Sinch;
 import com.sinch.android.rtc.SinchClient;
-import com.sinch.android.rtc.SinchClientBuilder;
 import com.sinch.android.rtc.SinchClientListener;
 import com.sinch.android.rtc.SinchError;
 import com.sinch.android.rtc.calling.Call;
-import com.sinch.android.rtc.calling.CallClient;
-import com.sinch.android.rtc.calling.CallClientListener;
 import com.sinch.android.rtc.calling.CallListener;
 import com.sinch.android.rtc.PushPair;
 import com.sinch.android.rtc.calling.CallState;
 
-import java.net.HttpURLConnection;
-
-import javax.net.ssl.HttpsURLConnection;
-
 
 public class CoolPlugin extends CordovaPlugin {
 
-    public static final String TAG = "VOIP PLUGIN";
+    public static final String TAG = "VoIP PLUGIN";
+
     private Call call = null;
     private SinchClient sinchClient =null;
-    private int duration = Toast.LENGTH_SHORT;
-    private Map<String,String> checkHeaders;
+    private static CallbackContext baseCallbackContext;
+    private CallbackContext createCallbackContext;
+    private CallbackContext joinCallbackContext;
+    private String username;
+    private String conferenceID;
+    private String toRoomID;
 
-    private boolean isIncomeCall=false;
-    private CallbackContext baseCallbackContext;
-    private CallbackContext dialCallbackContext;
-    private CallbackContext hangContext;
-    private CallbackContext pickUpContext;
 
+
+    public static CallbackContext getBaseCallbackContext(){
+
+        return baseCallbackContext;
+
+    }
 
     public CoolPlugin() {
     }
@@ -77,44 +63,34 @@ public class CoolPlugin extends CordovaPlugin {
 
 
 
-
     public boolean execute(final String action,final JSONArray args, final CallbackContext callbackContext) throws JSONException {
 
         Log.v(TAG, "VoIP plugin received:" + action);
 
         if ("REGISTER".equals(action)) {
 
-
             this.baseCallbackContext = callbackContext;
-            if(sinchClient==null) {
-                try {
 
-                    sinchClient = Sinch.getSinchClientBuilder()
-                            .context(cordova.getActivity().getApplicationContext())
-                            .userId(args.getString(0))
-                            .applicationKey("2bd1c61e-b210-46db-86d7-b6441c84281b")
-                            .applicationSecret("UZzt3EnAgk2A8zlbTvDGfA==")
-                            .environmentHost("sandbox.sinch.com")
-                            .build();
+            if (sinchClient == null) {
 
-                } catch (JSONException e) {
+                username = "sqilline-user";
 
-                    Log.v(TAG, "JSON FAILURE");
-                    baseCallbackContext.error("JSON FAIL");
-
-                }
+                sinchClient = Sinch.getSinchClientBuilder()
+                        .context(cordova.getActivity().getApplicationContext())
+                        .userId(username)
+                        .applicationKey("2bd1c61e-b210-46db-86d7-b6441c84281b")
+                        .applicationSecret("UZzt3EnAgk2A8zlbTvDGfA==")
+                        .environmentHost("sandbox.sinch.com")
+                        .build();
 
                 sinchClient.setSupportCalling(true);
-
-                //Enable waiting for calls
-                sinchClient.startListeningOnActiveConnection();
 
                 sinchClient.addSinchClientListener(new SinchClientListener() {
 
                     @Override
                     public void onClientStarted(SinchClient client) {
 
-                        PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, "SINCH CLIENT_START");
+                        PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, "VoIP CLIENT_START");
                         pluginResult.setKeepCallback(true);
                         baseCallbackContext.sendPluginResult(pluginResult);
 
@@ -123,7 +99,8 @@ public class CoolPlugin extends CordovaPlugin {
                     @Override
                     public void onClientStopped(SinchClient client) {
 
-                        baseCallbackContext.success("SINCH CLIENT_STOP");
+                        baseCallbackContext.success("VoIP CLIENT_STOP");
+
 
 
                     }
@@ -131,14 +108,18 @@ public class CoolPlugin extends CordovaPlugin {
                     @Override
                     public void onClientFailed(SinchClient client, SinchError error) {
 
-                        baseCallbackContext.error("SINCH CLIENT_FAIL");
+                        baseCallbackContext.error("VoIP CLIENT_FAIL");
+
+
 
                     }
 
                     @Override
                     public void onRegistrationCredentialsRequired(SinchClient client, ClientRegistration registrationCallback) {
 
-                        baseCallbackContext.error("SINCH REG_REQ");
+                        baseCallbackContext.error("VoIP REG_REQ");
+
+
                     }
 
                     @Override
@@ -167,78 +148,14 @@ public class CoolPlugin extends CordovaPlugin {
                 //Starting client!!
                 sinchClient.start();
 
-                //Catching incoming calls
-                sinchClient.getCallClient().addCallClientListener(new CallClientListener() {
-
-                    @Override
-                    public void onIncomingCall(CallClient callClient, Call incomingCall) {
-
-                        isIncomeCall = true;
-
-                        //Pick up the call!
-                        // Start playing ringing tone
-
-                        call = incomingCall;
-
-
-
-
-                        call.addCallListener(new CallListener() {
-
-                            @Override
-                            public void onCallProgressing(Call call) {
-
-                                PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, "IN: ON_PROGRESS");
-                                pluginResult.setKeepCallback(true);
-                                baseCallbackContext.sendPluginResult(pluginResult);
-
-                            }
-
-                            @Override
-                            public void onCallEstablished(Call call) {
-
-                                PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, "IN: ESTABLISHED");
-                                pluginResult.setKeepCallback(true);
-                                baseCallbackContext.sendPluginResult(pluginResult);
-
-                            }
-
-                            @Override
-                            public void onCallEnded(Call call) {
-
-                                isIncomeCall = false;
-                                PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, "IN: END");
-                                pluginResult.setKeepCallback(true);
-                                baseCallbackContext.sendPluginResult(pluginResult);
-
-                            }
-
-                            @Override
-                            public void onShouldSendPushNotification(Call call, List<PushPair> list) {
-
-                            }
-                        });
-
-                        PluginResult pluginResult = new PluginResult(PluginResult.Status.OK,
-                                        "Headers: " + incomingCall.getHeaders() + "/n" +
-                                        "State: "+  incomingCall.getState() + "/n" +
-                                        "CallID:"+incomingCall.getCallId()+ "/n" +
-                                        "CallDirection:"+incomingCall.getDirection().toString() + "/n" +
-                                        "CallDirection:"+incomingCall.getDetails().toString() );
-
-                        pluginResult.setKeepCallback(true);
-                        baseCallbackContext.sendPluginResult(pluginResult);
-
-                    }
-                });
-
-                PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, "SINCH REG_OK");
+                PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, "VoIP REG_OK");
                 pluginResult.setKeepCallback(true);
                 baseCallbackContext.sendPluginResult(pluginResult);
 
-            }else{
 
-                PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, "Incoming call, pick up!!");
+            } else {
+
+                PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, "You are already on");
                 pluginResult.setKeepCallback(true);
                 baseCallbackContext.sendPluginResult(pluginResult);
 
@@ -246,55 +163,86 @@ public class CoolPlugin extends CordovaPlugin {
 
             return true;
 
-        } else if ("CALL".equals(action)) {
+        } else if ("CREATE_ROOM".equals(action)) {
 
-            this.dialCallbackContext = callbackContext;
+            //Creating new conference room
+            this.createCallbackContext = callbackContext;
 
-            if(sinchClient!=null) {
+            if (sinchClient != null) {
 
-                    /*Map<String,String> callHeader= new HashMap<String, String>();
+                Map<String, String> callHeader = new HashMap<String, String>();
 
-                    callHeader.put(sinchClient.getLocalUserId(),sinchClient.toString());*/
+                conferenceID = UUID.randomUUID().toString();
 
-                try {
+                callHeader.put("SessionID",conferenceID );
 
-                    call = sinchClient.getCallClient().callConference(args.getString(0));
-
-                } catch (JSONException e) {
-
-                    Log.v(TAG, "JSON FAILURE");
-                    dialCallbackContext.error("JSON_FAIL");
-
-                }
-
-                isIncomeCall = false;
+                //TODO
+                call = sinchClient.getCallClient().callConference("TrainingRoom",callHeader);
 
                 call.addCallListener(new CallListener() {
 
                     @Override
                     public void onCallProgressing(Call call) {
 
-                        PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, "OUT: ON_PROGRESS");
+                        //Play some sound
+
+                        PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, "CREATING_ON_PROGRESS");
                         pluginResult.setKeepCallback(true);
-                        dialCallbackContext.sendPluginResult(pluginResult);
+                        createCallbackContext.sendPluginResult(pluginResult);
 
                     }
 
                     @Override
                     public void onCallEstablished(Call call) {
 
+                        //Inviting other users
+                        cordova.getThreadPool().execute(new Runnable() {
 
-                        PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, "OUT: ESTABLISHED/n Remote ID:" + call.getRemoteUserId());
-                        pluginResult.setKeepCallback(true);
-                        dialCallbackContext.sendPluginResult(pluginResult);
+                            public void run() {
+
+                                try {
+
+                                    //pushing only this user
+                                    //we must know the usernames of other users
+                                    JSONArray users = new JSONArray().put("sqilline-user1");
+
+                                    JSONObject data = new JSONObject().put("collaborationUID", "todo_later")
+                                                                      .put("conferenceId", conferenceID)
+                                                                      .put("initiator", username)
+                                                                      .put("users", users);
+
+                                    Log.e("PUSH_REQUEST:",data.toString());
+
+                                    String response = new UrlConnection("http://172.17.1.10:18090/squilline-scu-services/jsonServices", data,
+                                            "PushVoice","/call-all",false,"no-hcp-address").connect();
+
+                                    Log.e("PUSH_RESPONSE: ", " invite ready ");
+
+
+                                    PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, "Invite Response:\n" + response);
+                                    pluginResult.setKeepCallback(true);
+                                    createCallbackContext.sendPluginResult(pluginResult);
+
+
+                                }catch (JSONException e){
+
+                                    PluginResult pluginResult = new PluginResult(PluginResult.Status.ERROR, "JSON EXCEPTION:\n" + e.toString());
+                                    pluginResult.setKeepCallback(true);
+                                    createCallbackContext.sendPluginResult(pluginResult);
+
+                                }
+
+                            }
+                        });
 
                     }
+
 
                     @Override
                     public void onCallEnded(Call call) {
 
-                        PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, "OUT: END");
-                        dialCallbackContext.sendPluginResult(pluginResult);
+                        PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, "CALL ENDED");
+                        createCallbackContext.sendPluginResult(pluginResult);
 
                     }
 
@@ -306,267 +254,148 @@ public class CoolPlugin extends CordovaPlugin {
 
                 PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, "CALLING");
                 pluginResult.setKeepCallback(true);
-                dialCallbackContext.sendPluginResult(pluginResult);
+                createCallbackContext.sendPluginResult(pluginResult);
 
 
-            }else{
+            } else {
 
-                dialCallbackContext.error("Please register first");
-
-            }
-
-
-            return true;
-
-        }  else if ("HANG".equals(action)) {
-
-            this.hangContext= callbackContext;
-
-            if(sinchClient!=null && (!call.getState().equals(CallState.ENDED))) {
-                if(!call.getState().equals(CallState.ENDED)) {
-                    call.hangup();
-
-                    if (isIncomeCall) {
-
-                        PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, "HANG IN CALL");
-                        pluginResult.setKeepCallback(true);
-                        baseCallbackContext.sendPluginResult(pluginResult);
-
-
-                    } else {
-
-                        PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, "HANG OUT CALL");
-                        pluginResult.setKeepCallback(true);
-                        dialCallbackContext.sendPluginResult(pluginResult);
-
-                    }
-
-
-                    hangContext.success("HANG_SUCCESS");
-                }else{
-
-                    hangContext.error("Please establish conversation first");
-
-
-                }
-            }else{
-
-                hangContext.error("Please register first and establish conversation");
+                createCallbackContext.error("Please register first");
 
             }
 
-
             return true;
 
-        } else if ("PICKUP".equals(action)) {
-
-            pickUpContext = callbackContext;
-            if(sinchClient!=null && call!=null ) {
-                if(!call.getState().equals(CallState.ENDED)) {
-
-                    call.answer();
-
-                    Toast toast = Toast.makeText(cordova.getActivity().getApplicationContext(), "TAAAALK", duration);
-                    toast.show();
-
-                    pickUpContext.success("Pickup SUCCESS");
-
-                }else{
-
-                    pickUpContext.error("Call was ended before");
-
-                }
-            }else{
-
-                pickUpContext.error("Please register first and recieve a call");
-
-            }
-
-
-            return true;
-
-        }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        else if ("CHECK".equals(action)) {
-
-
-            cordova.getThreadPool().execute(new Runnable() {
-                public void run() {
-
-                    String result;
-
-                    try {
-
-                        result = downloadUrl("https://callingapi.sinch.com/v1/conferences/id/blabla");
-                        PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, result);
-                        pluginResult.setKeepCallback(true);
-                        callbackContext.sendPluginResult(pluginResult);
-
-
-                    } catch (IOException e) {
-                        Log.e("PLUGIN GET", e.toString());
-                        PluginResult pluginResult = new PluginResult(PluginResult.Status.ERROR);
-                        callbackContext.sendPluginResult(pluginResult);
-
-                    } catch (JSONException e) {
-
-                        Log.e("PLUGIN GET", e.toString());
-                        PluginResult pluginResult = new PluginResult(PluginResult.Status.ERROR);
-                        callbackContext.sendPluginResult(pluginResult);
-                    }
-                }
-            });
-
-
-            return true;
-
-        } else if ("INFO".equals(action)) {
-
-
-            cordova.getThreadPool().execute(new Runnable() {
-                public void run() {
-
-
-                }
-            });
-
-
-            return true;
-
-        }else if("SHOW_H".equals(action)){
-
-
-
-            AlertDialog.Builder builder = new AlertDialog.Builder(cordova.getActivity());
-            builder.setMessage(checkHeaders.toString())
-                    .setTitle("Headers");
-
-            AlertDialog dialog = builder.create();
-            dialog.show();
-
-
-
-            callbackContext.success();
-            return true;
-
-        }
-
-
-        return false;  // Returning false results in a "MethodNotFound" error.
-
-    }
-
-    private String downloadUrl(String myurl) throws IOException,JSONException {
-
-        InputStream is = null;
-        HttpsURLConnection conn;
-        // Only display the first 500 characters of the retrieved
-        // web page content.
-        int len = 500;
-
-        try {
-
-
-            String key = "2bd1c61e-b210-46db-86d7-b6441c84281b";
-            String secret = "UZzt3EnAgk2A8zlbTvDGfA==";
-            String usernameAndPassword = "application\\" + key + ":" + secret;
-
-
-            URL url = new URL(myurl);
-            conn = (HttpsURLConnection) url.openConnection();
-
-            conn.setReadTimeout(10000);
-            conn.setConnectTimeout(15000);
-            conn.setRequestMethod("GET");
-            conn.setUseCaches(false);
-            conn.setAllowUserInteraction(false);
-
-            conn.setRequestProperty("Authorization", "basic " +
-                    Base64.encodeToString(usernameAndPassword.getBytes(), Base64.NO_WRAP));
-
-
-            //Authorization = "basic" + " " + Base64 ( usernameAndPassword )
-
-            conn.setDoInput(true);
-            // Starts the query
-
-            BufferedReader br = new BufferedReader(new InputStreamReader(conn.getInputStream()));
-            StringBuilder sb = new StringBuilder();
-
-            conn.connect();
-            Log.e("PLUGIN POST", "connect success");
-            int response = conn.getResponseCode();
-            Log.e("PLUGIN POST", "response success");
-
+        } else if ("JOIN_ROOM".equals(action)) {       //if we accept when we got invite
 
             //TODO
 
-            Log.e("PLUGIN GET", "input stream success");
-            // Convert the InputStream into a string
-            // String contentAsString = readIt(is, len);
+
+            toRoomID = args.getString(0);
+
+            joinCallbackContext = callbackContext;
+
+            Map<String, String> callHeader = new HashMap<String, String>();
+
+            callHeader.put("SessionID",toRoomID );
+
+            call = sinchClient.getCallClient().callConference(toRoomID,callHeader);
+
+            call.addCallListener(new CallListener() {
+
+                @Override
+                public void onCallProgressing(Call call) {
+
+                    //Play some sound
+
+                    PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, "CALL PROGRESSING");
+                    pluginResult.setKeepCallback(true);
+                    joinCallbackContext.sendPluginResult(pluginResult);
+
+                }
+
+                @Override
+                public void onCallEstablished(Call call) {
+
+                    cordova.getThreadPool().execute(new Runnable() {
+
+                        public void run() {
 
 
-            String line;
-            while ((line = br.readLine()) != null) {
-                sb.append(line + "\n");
+
+
+
+                            Log.e("INFO_REQUEST:", toRoomID);
+
+                            String response = new UrlConnection("http://172.17.1.10:18090/squilline-scu-services/jsonServices", toRoomID,
+                                    "InfoVoice","/conference-user-info",false,"no-hcp-address").connect();
+
+                            Log.e("INFO_RESPONSE: ", response);
+
+
+
+
+                            PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, "ESTABLISHED Response:\n" + response);
+                            pluginResult.setKeepCallback(true);
+                            joinCallbackContext.sendPluginResult(pluginResult);
+
+
+
+
+
+                        }
+                    });
+
+
+                }
+
+                @Override
+                public void onCallEnded(Call call) {
+
+                    PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, "CALL ENDED");
+                    joinCallbackContext.sendPluginResult(pluginResult);
+
+                }
+
+                @Override
+                public void onShouldSendPushNotification(Call call, List<PushPair> list) {
+
+                }
+            });
+
+            PluginResult pluginResult = new PluginResult(PluginResult.Status.OK, "CALLING");
+            pluginResult.setKeepCallback(true);
+            joinCallbackContext.sendPluginResult(pluginResult);
+
+
+            return true;
+
+
+        } else if ("HANG".equals(action)) {
+
+            if (sinchClient != null && (!call.getState().equals(CallState.ENDED))) {
+
+                if (!call.getState().equals(CallState.ENDED)) {
+
+                    call.hangup();
+                    callbackContext.success("HANG_SUCCESS");
+
+                } else {
+
+                    callbackContext.error("Please establish conversation first");
+
+
+                }
+            } else {
+
+                callbackContext.error("Please register first and establish conversation");
+
             }
-            br.close();
-
-            Log.e("PLUGIN GET", "toString try");
-
-            conn.disconnect();
-            Log.e("PLUGIN GET", "DISSCONNECTED");
 
 
+            return true;
 
-            JSONObject jsonObj = new JSONObject(sb.toString());
+        } else if ("DESTROY".equals(action)) {
 
-            return jsonObj.toString();
-            // return contentAsString;
+            if (sinchClient != null) {
+                sinchClient.terminate();
+                sinchClient=null;
+                callbackContext.success("Destroy success");
+
+            }else callbackContext.error("Destroy fail");
 
 
-            // Makes sure that the InputStream is closed after the app is
-            // finished using it.
 
-
-        }  finally {
-            if (is != null) {
-                is.close();
-
-            }
+            return true;
         }
-    }
 
-    // Reads an InputStream and converts it to a String.
-    public String readIt(InputStream stream, int len) throws IOException, UnsupportedEncodingException {
-        Reader reader = null;
-        reader = new InputStreamReader(stream, "UTF-8");
-        char[] buffer = new char[len];
-        reader.read(buffer);
-        return new String(buffer);
+
+        return false;
     }
 
 
-    public void onDestroy() {
 
 
-        sinchClient.stopListeningOnActiveConnection();
-        sinchClient.terminate();
-
+    public void onStop() {
 
 
     }
